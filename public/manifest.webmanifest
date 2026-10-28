@@ -1,0 +1,12 @@
+{
+  "name": "NutriPlan GR",
+  "short_name": "NutriPlan",
+  "description": "Διαιτολογικό γραφείο: πελάτες, μετρήσεις, ισοδύναμα και διαιτολόγια.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f6f4",
+  "theme_color": "#0f6e56",
+  "lang": "el",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
