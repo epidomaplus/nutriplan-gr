@@ -65,13 +65,19 @@ npm run smoke
 | `PORT` | `3000` | Θύρα |
 | `SESSION_SECRET` | τιμή ανάπτυξης | **Υποχρεωτικό σε production** |
 | `ALLOW_SIGNUP` | `true` | `false` κλείνει νέους διαιτολόγους. Ο πρώτος λογαριασμός επιτρέπεται πάντα. Η πρόσκληση πελάτη δεν επηρεάζεται. |
-| `DATA_DIR` | `./data` | Φάκελος του `db.json` |
+| `DATABASE_URL` | άδειο | **Μόνιμη αποθήκευση** σε PostgreSQL (π.χ. Neon). Αν λείπει, χρησιμοποιείται τοπικό `db.json` (μόνο για ανάπτυξη). |
+| `DATA_DIR` | `./data` | Φάκελος του `db.json` (μόνο χωρίς `DATABASE_URL`) |
 | `APP_NAME` | `NutriPlan GR` | Όνομα στο UI |
 | `SEED_DEMO` | άδειο | `true` δημιουργεί δοκιμαστικό γραφείο μόνο αν δεν υπάρχει διαιτολόγος |
 | `DEMO_EMAIL` / `DEMO_PASSWORD` | `demo@example.com` / `demo-pass-1` | Μόνο με `SEED_DEMO` |
 | `DEMO_CLIENT_EMAIL` | `client@example.com` | Πύλη του δοκιμαστικού πελάτη |
 
-Αποθήκευση: ένα αρχείο JSON. Δεν χρειάζεται βάση. Κατάλληλο για δωρεάν Render, με τον κίνδυνο που περιγράφεται παρακάτω.
+Αποθήκευση:
+
+- **Με `DATABASE_URL`** (production): PostgreSQL. Πίνακες `users`, `clients`, `visits` (μετρήσεις), `plans` (διαιτολόγια/γεύματα, ανάθεση σε πελάτη μέσω `client_id`), `recipes`, `appointments`, `todos`, `templates`, `custom_foods`, `diary`, `messages`. Κάθε γραμμή: `id`, `owner_id`, `client_id`, `data jsonb`. Το σχήμα δημιουργείται αυτόματα στην εκκίνηση. Κάθε απάντηση του API στέλνεται αφού γίνει commit στη βάση. Αν η βάση είναι κενή και υπάρχει `DATA_DIR/db.json`, εισάγεται μία φορά.
+- **Χωρίς `DATABASE_URL`**: ένα αρχείο JSON (`DATA_DIR/db.json`) — για τοπική ανάπτυξη. Στο Render χάνεται σε κάθε redeploy.
+
+Τα τρόφιμα/ισοδύναμα βρίσκονται στον κώδικα (`foods.js`), όχι στη βάση.
 
 ## Render
 
@@ -79,9 +85,14 @@ npm run smoke
 2. Το `SESSION_SECRET` γεννιέται από το blueprint. Μετά την εγγραφή σας, βάλτε `ALLOW_SIGNUP=false` αν το γραφείο πρέπει να μείνει κλειστό.
 3. Μην αφήνετε `SEED_DEMO=true` σε δημόσια διεύθυνση.
 
-**Δίσκος.** Στο δωρεάν πλάνο ο δίσκος είναι προσωρινός: το `data/db.json` χάνεται σε redeploy ή restart. Κρατήστε αντίγραφο από «Λογαριασμός → Λήψη JSON».
+**Μόνιμα δεδομένα (δωρεάν).** Ο δίσκος του δωρεάν Render είναι προσωρινός. Γι' αυτό:
 
-Για μόνιμα δεδομένα, σε πληρωμένο instance προσθέστε Persistent Disk (π.χ. mount `/var/data`) και `DATA_DIR=/var/data`. Το δωρεάν blueprint δεν δηλώνει δίσκο, για να σηκώνεται χωρίς χρέωση.
+1. Δημιουργήστε δωρεάν βάση στο [Neon](https://neon.tech) (region *AWS Europe Central 1 / Frankfurt*, ίδιο με το Render).
+2. Αντιγράψτε το connection string (pooled, `postgresql://...-pooler...neon.tech/neondb?sslmode=require...`).
+3. Render → service → *Environment* → `DATABASE_URL` = το connection string → *Save, rebuild and deploy*.
+4. Έλεγχος: `GET /healthz` δείχνει `"storage":"postgres","persistent":true`. Το `/healthz?deep=1` κάνει και `SELECT 1` στη βάση.
+
+Συνιστάται και περιοδικό αντίγραφο από «Λογαριασμός → Λήψη JSON».
 
 ## Μεταβίβαση λογαριασμού / Ownership
 

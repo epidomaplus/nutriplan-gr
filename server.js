@@ -4,7 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { FOODS, byId as foodById } from './foods.js';
-import { db, save, uid, owned, findOwned, DATA_DIR } from './lib/store.js';
+import { db, save, uid, owned, findOwned, DATA_DIR, STORAGE, initStore, persistMiddleware, storageInfo, pingDb, closeStore } from './lib/store.js';
 import { hashPw, checkPw, setSession, clearSession, currentUser, publicUser, auth, authDiet, authClient, tooMany, markFail } from './lib/auth.js';
 import { clientInput, visitInput, planData, foodInput, str, text, optNum, flag, reqEmail, httpUrl } from './lib/validate.js';
 import { applyDerived } from './shared/measures.js';
@@ -82,15 +82,25 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '8mb' }));
+app.use(persistMiddleware);
 app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'same-origin'); next(); });
 app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
-app.get('/healthz', (req, res) => {
-  let writable = true;
-  try { fs.accessSync(DATA_DIR, fs.constants.W_OK); } catch { writable = false; }
-  res.status(writable ? 200 : 503).json({
-    ok: writable, app: APP_NAME, version: pkg.version, foods: FOODS.length,
-    storage: 'json-file', writable, time: nowIso(),
+app.get('/healthz', async (req, res) => {
+  const info = storageInfo();
+  let ok = true;
+  if (STORAGE === 'json-file') {
+    try { fs.accessSync(DATA_DIR, fs.constants.W_OK); } catch { ok = false; }
+    info.writable = ok;
+  } else {
+    ok = info.ready; // a transient save error is retried automatically; see lastError
+    if (req.query.deep) {
+      try { await pingDb(); info.db = 'ok'; } catch (err) { ok = false; info.db = 'error: ' + err.message; }
+    }
+  }
+  res.status(ok ? 200 : 503).json({
+    ok, app: APP_NAME, version: pkg.version, foods: FOODS.length,
+    ...info, time: nowIso(),
   });
 });
 app.get('/api/config', (req, res) => {
@@ -624,9 +634,31 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Εσωτερικό σφάλμα.' });
 });
 
-if (process.env.SEED_DEMO === 'true') {
-  const demo = seedDemo();
-  if (demo) console.log(`Demo dietitian ${demo.email} / ${demo.password} · client portal ${demo.clientEmail}`);
+try {
+  await initStore();
+} catch (err) {
+  console.error('[db] could not load data, refusing to start:', err.message);
+  process.exit(1);
 }
 
-app.listen(PORT, () => console.log(`${APP_NAME} ${pkg.version} on http://localhost:${PORT}`));
+if (process.env.SEED_DEMO === 'true') {
+  const demo = seedDemo();
+  if (demo) {
+    await save();
+    console.log(`Demo dietitian ${demo.email} / ${demo.password} · client portal ${demo.clientEmail}`);
+  }
+}
+
+const server = app.listen(PORT, () => console.log(`${APP_NAME} ${pkg.version} on http://localhost:${PORT} · storage=${STORAGE}`));
+
+let stopping = false;
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`${sig}: saving and shutting down`);
+    server.close();
+    closeStore().finally(() => process.exit(0));
+    setTimeout(() => process.exit(0), 20000).unref();
+  });
+}

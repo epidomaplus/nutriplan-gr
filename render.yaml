@@ -18,5 +18,7 @@ services:
         value: "true"
       - key: SEED_DEMO
         value: "false"
-      - key: DATA_DIR
+      - key: DATABASE_URL   # Neon/PostgreSQL connection string — permanent storage
+        sync: false
+      - key: DATA_DIR       # only used when DATABASE_URL is empty (dev)
         value: ./data
