@@ -65,7 +65,7 @@ try {
   assert(fib.dri === 38 && fib.perKcal === 28, 'fiber ' + fib.dri + ' ' + fib.perKcal);
   const health = await waitHealthy();
   assert(health.foods >= 200, 'foods ' + health.foods);
-  assert(health.storage === 'json-file', 'storage');
+  assert(health.storage === (process.env.DATABASE_URL ? 'postgres' : 'json-file'), 'storage');
 
   const bread = FOODS.find(f => f.name === 'Ψωμί λευκό');
   const breadEx = itemEx(itemFromFood(bread, 30));
