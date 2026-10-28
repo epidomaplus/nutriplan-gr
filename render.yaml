@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: nutriplan-gr
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ALLOW_SIGNUP
+        value: "true"
+      - key: SEED_DEMO
+        value: "false"
+      - key: DATA_DIR
+        value: ./data
